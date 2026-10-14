@@ -1,0 +1,15 @@
+# Word & Document files (keep private from code repo)
+*.docx
+*.doc
+*.pptx
+*.pdf
+~$*
+
+# Python & System
+__pycache__/
+*.pyc
+*.pyo
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

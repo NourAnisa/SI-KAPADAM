@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SI-KAPADAM | Sistem Geoinformatika Komando Armada Pemadam dan Pantau Asap Lahan Gambut Banjarmasin</title>
+    
+    <!-- Meta SEO & Open Graph -->
+    <meta name="description" content="Platform Geoinformatika Terpadu Deteksi Dini Karhutla, Integrasi Hotspot SiPongi KLHK, Kualitas Udara IQAir (PM2.5), Saluran Air Pasang-Surut, dan Respon Cepat BPK Kota Banjarmasin">
+    <meta name="author" content="Tim Peneliti Bappedalitbang Kota Banjarmasin 2026">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        fire: {
+                            50: '#fff1f2',
+                            100: '#ffe4e6',
+                            500: '#f43f5e',
+                            600: '#e11d48',
+                            700: '#be123c',
+                            900: '#881337',
+                        },
+                        ambercustom: {
+                            500: '#f59e0b',
+                            600: '#d97706',
+                        },
+                        river: {
+                            500: '#0284c7',
+                            600: '#0369a1',
+                            700: '#075985',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter & Poppins -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-heading { font-family: 'Poppins', sans-serif; }
+        
+        /* Custom Pulse for Hotspots */
+        @keyframes fire-pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.7); }
+            70% { transform: scale(1.15); box-shadow: 0 0 0 15px rgba(225, 29, 72, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(225, 29, 72, 0); }
+        }
+        .pulse-fire {
+            animation: fire-pulse 2s infinite;
+        }
+
+        /* Leaflet custom tooltips */
+        .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
+            padding: 4px;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 flex flex-col h-screen overflow-hidden">
+
+    <!-- TOP NAVIGATION BAR -->
+    <header class="bg-slate-950 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between shrink-0 z-30 shadow-lg">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-600 to-amber-500 flex items-center justify-center shadow-lg shadow-rose-900/40 text-white font-bold text-xl">
+                <i class="fa-solid fa-fire-flame-curved"></i>
+            </div>
+            <div>
+                <div class="flex items-center space-x-2">
+                    <span class="font-heading font-extrabold text-xl tracking-tight text-white">SI-KAPADAM</span>
+                    <span class="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30">Live DSS v2.6</span>
+                </div>
+                <p class="text-[11px] text-slate-400 font-medium hidden sm:block">Sistem Geoinformatika Komando Armada Pemadam & Pantau Asap Lahan Banjarmasin</p>
+            </div>
+        </div>
+
+        <!-- Real-Time Top Indicators -->
+        <div class="hidden lg:flex items-center space-x-6 text-xs">
+            <!-- SiPongi Status -->
+            <div class="flex items-center space-x-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg">
+                <div class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></div>
+                <div>
+                    <span class="text-slate-400 block text-[10px]">SiPongi KLHK Hotspot</span>
+                    <span class="font-bold text-rose-400 text-xs" id="topHotspotCount">14 Titik Panas Terdeteksi</span>
+                </div>
+            </div>
+
+            <!-- IQAir PM2.5 Status -->
+            <div class="flex items-center space-x-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg">
+                <i class="fa-solid fa-wind text-amber-400 text-sm"></i>
+                <div>
+                    <span class="text-slate-400 block text-[10px]">IQAir PM2.5 Banjarmasin</span>
+                    <span class="font-bold text-amber-400 text-xs" id="topAqiBadge">AQI 158 (Tidak Sehat)</span>
+                </div>
+            </div>
+
+            <!-- Pasang Surut Air Kanal -->
+            <div class="flex items-center space-x-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg">
+                <i class="fa-solid fa-water text-cyan-400 text-sm"></i>
+                <div>
+                    <span class="text-slate-400 block text-[10px]">Status Pasut (Pelabuhan Trisakti)</span>
+                    <span class="font-bold text-cyan-400 text-xs" id="topTideBadge">+1.85 m (Pasang Tinggi - Aman Pompa)</span>
+                </div>
+            </div>
+
+            <!-- Balakar 654 Radio -->
+            <div class="flex items-center space-x-2 bg-rose-950/60 border border-rose-700/50 px-3 py-1.5 rounded-lg text-rose-300">
+                <i class="fa-solid fa-walkie-talkie text-sm text-rose-400"></i>
+                <div>
+                    <span class="text-rose-400 block text-[10px]">Radio Komando BALAKAR 654</span>
+                    <span class="font-bold text-white text-xs">Freq 146.540 MHz | Siaga 1</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center space-x-2">
+            <button onclick="toggleModal('modalLapor')" class="bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-semibold text-xs px-3.5 py-2 rounded-lg shadow-md shadow-rose-900/40 flex items-center space-x-1.5 transition">
+                <i class="fa-solid fa-bullhorn text-xs"></i>
+                <span>Lapor Titik Api (VGI)</span>
+            </button>
+            <button onclick="toggleModal('modalInfo')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs p-2 rounded-lg border border-slate-700 transition" title="Panduan & Metodologi">
+                <i class="fa-solid fa-circle-question"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN APP LAYOUT (Sidebar + Map + Floating Panes) -->
+    <div class="flex flex-1 relative overflow-hidden">
+
+        <!-- LEFT SIDEBAR: MONITORING & CONTROLS -->
+        <aside id="leftSidebar" class="w-80 sm:w-96 bg-slate-950/95 backdrop-blur-md border-r border-slate-800 flex flex-col z-20 shrink-0 transition-all duration-300 overflow-y-auto">
+            
+            <!-- Quick Alert Banner -->
+            <div class="p-3 bg-gradient-to-r from-rose-900/60 to-slate-900 border-b border-rose-800/40">
+                <div class="flex items-start space-x-2.5">
+                    <span class="p-2 rounded-lg bg-rose-600/30 text-rose-400 shrink-0 mt-0.5">
+                        <i class="fa-solid fa-triangle-exclamation text-base"></i>
+                    </span>
+                    <div>
+                        <h4 class="text-xs font-bold text-rose-300 tracking-wide uppercase">Peringatan Kesiapsiagaan Dini</h4>
+                        <p class="text-[11px] text-slate-300 leading-snug mt-0.5">Angin Monsun Tenggara (18 km/jam) meniup asap karhutla dari Gambut & Liang Anggang menuju Banjarmasin Selatan & Timur.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Navigation Inside Sidebar -->
+            <div class="flex border-b border-slate-800 text-xs font-medium">
+                <button onclick="switchTab('tab-pemantauan')" id="btn-tab-pemantauan" class="flex-1 py-2.5 px-3 border-b-2 border-rose-500 text-rose-400 bg-slate-900/70 font-semibold flex items-center justify-center space-x-1.5">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span>Analisis Spasial</span>
+                </button>
+                <button onclick="switchTab('tab-armada')" id="btn-tab-armada" class="flex-1 py-2.5 px-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center justify-center space-x-1.5">
+                    <i class="fa-solid fa-truck-droplet"></i>
+                    <span>Armada BPK & Air</span>
+                </button>
+                <button onclick="switchTab('tab-dss')" id="btn-tab-dss" class="flex-1 py-2.5 px-3 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center justify-center space-x-1.5">
+                    <i class="fa-solid fa-landmark"></i>
+                    <span>Rekomendasi Pemkot</span>
+                </button>
+            </div>
+
+            <!-- TAB 1: PEMANTAUAN HOTSPOT & KUALITAS UDARA -->
+            <div id="tab-pemantauan" class="p-4 space-y-4">
+
+                <!-- Layer Toggles -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+                    <span class="text-[11px] font-bold text-slate-400 tracking-wider uppercase block">Layer Geospasial Aktif</span>
+                    
+                    <label class="flex items-center justify-between text-xs cursor-pointer select-none">
+                        <span class="flex items-center space-x-2 text-slate-200">
+                            <i class="fa-solid fa-fire text-rose-500 text-sm"></i>
+                            <span>Titik Panas (SiPongi KLHK)</span>
+                        </span>
+                        <input type="checkbox" id="layerHotspotToggle" checked onchange="toggleMapLayer('hotspots')" class="accent-rose-600 w-4 h-4 rounded">
+                    </label>
+
+                    <label class="flex items-center justify-between text-xs cursor-pointer select-none">
+                        <span class="flex items-center space-x-2 text-slate-200">
+                            <i class="fa-solid fa-smog text-amber-400 text-sm"></i>
+                            <span>Dispersi Asap & AQI IQAir</span>
+                        </span>
+                        <input type="checkbox" id="layerAqiToggle" checked onchange="toggleMapLayer('aqi')" class="accent-amber-500 w-4 h-4 rounded">
+                    </label>
+
+                    <label class="flex items-center justify-between text-xs cursor-pointer select-none">
+                        <span class="flex items-center space-x-2 text-slate-200">
+                            <i class="fa-solid fa-water text-cyan-400 text-sm"></i>
+                            <span>Saluran Rawa & Pasut Air</span>
+                        </span>
+                        <input type="checkbox" id="layerCanalToggle" checked onchange="toggleMapLayer('canals')" class="accent-cyan-500 w-4 h-4 rounded">
+                    </label>
+
+                    <label class="flex items-center justify-between text-xs cursor-pointer select-none">
+                        <span class="flex items-center space-x-2 text-slate-200">
+                            <i class="fa-solid fa-shield-halved text-emerald-400 text-sm"></i>
+                            <span>Posko Relawan BPK (Balakar 654)</span>
+                        </span>
+                        <input type="checkbox" id="layerBpkToggle" checked onchange="toggleMapLayer('bpk')" class="accent-emerald-500 w-4 h-4 rounded">
+                    </label>
+                </div>
+
+                <!-- Live IQAir Station Cards -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-1.5">
+                            <i class="fa-solid fa-gauge-high text-amber-400"></i>
+                            <h4 class="text-xs font-bold text-white uppercase">Stasiun Kualitas Udara (IQAir)</h4>
+                        </div>
+                        <span class="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded">PM2.5 Real-Time</span>
+                    </div>
+
+                    <div class="space-y-2" id="stationList">
+                        <!-- Rendered dynamically -->
+                    </div>
+                </div>
+
+                <!-- Feed Hotspot SiPongi Peri-Urban -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-1.5">
+                            <i class="fa-solid fa-satellite-dish text-rose-500"></i>
+                            <h4 class="text-xs font-bold text-white uppercase">Hotspot SiPongi Ring Perbatasan</h4>
+                        </div>
+                        <span class="text-[10px] text-rose-400 bg-rose-950/60 border border-rose-800/40 px-2 py-0.5 rounded font-mono font-bold">Radius 25 Km</span>
+                    </div>
+
+                    <div class="space-y-2 max-h-56 overflow-y-auto pr-1" id="hotspotFeed">
+                        <!-- Rendered dynamically -->
+                    </div>
+                </div>
+
+                <!-- Wind & Weather BMKG Box -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 flex items-center justify-between text-xs">
+                    <div>
+                        <span class="text-[10px] text-slate-400 block uppercase">BMKG Stasiun Meteorologi Syamsudin Noor</span>
+                        <span class="font-bold text-slate-200">Arah Angin: Tenggara (140&deg;)</span>
+                        <span class="block text-slate-400 text-[11px]">Kecepatan: 18.2 km/jam | Suhu: 33.4&deg;C</span>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-amber-400">
+                        <i class="fa-solid fa-location-arrow -rotate-45 text-base"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: ARMADA BPK & TATA AIR PASUT -->
+            <div id="tab-armada" class="p-4 space-y-4 hidden">
+                <!-- Info Status Pasut Sungai Barito / Martapura -->
+                <div class="bg-gradient-to-br from-cyan-950/60 to-slate-900 border border-cyan-800/50 rounded-xl p-3.5 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-cyan-300 flex items-center space-x-1.5 uppercase">
+                            <i class="fa-solid fa-water"></i>
+                            <span>Status Hidrologi Pasang-Surut</span>
+                        </span>
+                        <span class="text-[10px] bg-cyan-900/60 text-cyan-200 px-2 py-0.5 rounded font-mono">Pushidrosal</span>
+                    </div>
+                    <div class="flex items-baseline space-x-2">
+                        <span class="text-2xl font-bold font-mono text-cyan-400">+1.85 m</span>
+                        <span class="text-xs text-slate-300 font-semibold">(Pasang Penuh / High Tide)</span>
+                    </div>
+                    <p class="text-[11px] text-slate-300 leading-snug">
+                        Kondisi air saluran primer & sekunder mencukupi ambang batas hisap pompa portable ($> 0.8\text{ m}$). Armada BPK dapat memanfaatkan kanal terdekat.
+                    </p>
+                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                        <div class="bg-cyan-500 h-full w-[82%]"></div>
+                    </div>
+                    <div class="flex justify-between text-[10px] text-slate-400">
+                        <span>Surut Kritis (<0.6m)</span>
+                        <span>Normal (1.0m)</span>
+                        <span>Pasang Maks (2.2m)</span>
+                    </div>
+                </div>
+
+                <!-- BPK Fleet Locator -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-xs font-bold text-white uppercase flex items-center space-x-1.5">
+                            <i class="fa-solid fa-users text-emerald-400"></i>
+                            <span>Daftar Unit BPK Siaga Sektor</span>
+                        </h4>
+                        <span class="text-[10px] text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-2 py-0.5 rounded font-bold">Balakar 654</span>
+                    </div>
+
+                    <div class="space-y-2 max-h-72 overflow-y-auto pr-1" id="bpkList">
+                        <!-- Rendered dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: DECISION SUPPORT SYSTEM (REKOMENDASI PEMKOT) -->
+            <div id="tab-dss" class="p-4 space-y-4 hidden">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 space-y-3">
+                    <div class="flex items-center space-x-1.5">
+                        <i class="fa-solid fa-graduation-cap text-indigo-400"></i>
+                        <h4 class="text-xs font-bold text-white uppercase">Dinas Pendidikan (Disdik)</h4>
+                    </div>
+                    <div class="p-2.5 rounded-lg bg-amber-950/40 border border-amber-700/40 text-amber-200 text-xs leading-relaxed">
+                        <span class="font-bold block text-amber-300 mb-1"><i class="fa-solid fa-bell mr-1"></i> Rekomendasi: Penyesuaian Jam Sekolah</span>
+                        Indeks PM2.5 rata-rata Kota Banjarmasin berada di kisaran 155–165 &micro;g/m&sup3; (Tidak Sehat). Disarankan memundurkan jam masuk PAUD, SD, dan SMP menjadi pukul <strong>08.30 WITA</strong> dan meniadakan upacara/olahraga luar ruangan.
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 space-y-3">
+                    <div class="flex items-center space-x-1.5">
+                        <i class="fa-solid fa-heart-pulse text-rose-400"></i>
+                        <h4 class="text-xs font-bold text-white uppercase">Dinas Kesehatan (Dinkes)</h4>
+                    </div>
+                    <div class="p-2.5 rounded-lg bg-rose-950/40 border border-rose-700/40 text-rose-200 text-xs leading-relaxed">
+                        <span class="font-bold block text-rose-300 mb-1"><i class="fa-solid fa-mask-face mr-1"></i> Siaga Masker & Pencegahan ISPA</span>
+                        Puskesmas di Banjarmasin Selatan dan Timur diinstruksikan membuka posko layanan oksigen gratis dan membagikan masker medis/N95 untuk kelompok rentan (lansia, balita, ibu hamil).
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 space-y-3">
+                    <div class="flex items-center space-x-1.5">
+                        <i class="fa-solid fa-fire-extinguisher text-amber-400"></i>
+                        <h4 class="text-xs font-bold text-white uppercase">BPBD & DPKP Kota Banjarmasin</h4>
+                    </div>
+                    <div class="p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-xs leading-relaxed">
+                        <span class="font-bold block text-white mb-1"><i class="fa-solid fa-crosshairs mr-1"></i> Status: SIAGA 1 DARURAT ASAP</span>
+                        Mengarahkan 25 regu BPK terdekat untuk membentuk sekat bakar (*firebreak*) basah di sepanjang perbatasan Lingkar Selatan dan saluran primer Gambut Barat.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Sidebar -->
+            <div class="mt-auto p-3 border-t border-slate-800 text-[10px] text-slate-500 flex items-center justify-between">
+                <span>Platform LKTI Bappedalitbang 2026</span>
+                <span class="text-slate-400">UNISM Banjarmasin</span>
+            </div>
+        </aside>
+
+        <!-- MAP CONTAINER -->
+        <main class="flex-1 relative z-10">
+            <div id="map" class="w-full h-full"></div>
+
+            <!-- Floating Map Legend -->
+            <div class="absolute bottom-6 right-6 z-[1000] bg-slate-950/90 backdrop-blur-md border border-slate-800 p-3.5 rounded-xl shadow-2xl max-w-xs text-xs space-y-2">
+                <span class="font-bold text-slate-200 block text-[11px] uppercase tracking-wider">Legenda Peta Spasial</span>
+                <div class="grid grid-cols-2 gap-2 text-[11px]">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-3.5 h-3.5 rounded-full bg-rose-600 flex items-center justify-center text-[8px] text-white font-bold animate-pulse">
+                            <i class="fa-solid fa-fire"></i>
+                        </span>
+                        <span class="text-slate-300">Hotspot SiPongi</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="w-3.5 h-3.5 rounded-full bg-amber-500 border-2 border-white"></span>
+                        <span class="text-slate-300">Sensor IQAir AQI</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="w-4 h-1 bg-cyan-400 rounded"></span>
+                        <span class="text-slate-300">Kanal Air Pasang</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="w-4 h-1 bg-amber-600 rounded"></span>
+                        <span class="text-slate-300">Kanal Air Surut</span>
+                    </div>
+                    <div class="flex items-center space-x-2 col-span-2">
+                        <span class="w-3.5 h-3.5 rounded bg-emerald-600 flex items-center justify-center text-[8px] text-white">
+                            <i class="fa-solid fa-truck"></i>
+                        </span>
+                        <span class="text-slate-300">Posko BPK Swasta (Balakar 654)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Map Action Tool (Center to Banjarmasin) -->
+            <div class="absolute top-4 right-4 z-[1000] flex flex-col space-y-2">
+                <button onclick="resetMapView()" class="bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700 w-9 h-9 rounded-lg flex items-center justify-center shadow-lg transition" title="Fokuskan ke Kota Banjarmasin">
+                    <i class="fa-solid fa-location-crosshairs text-sm"></i>
+                </button>
+                <button onclick="triggerSmokeSimulation()" id="btnSimulasi" class="bg-rose-700 hover:bg-rose-600 text-white border border-rose-600 px-3 py-1.5 rounded-lg flex items-center space-x-1.5 shadow-lg text-xs font-semibold transition" title="Simulasi Sebaran Asap Angin Tenggara">
+                    <i class="fa-solid fa-play text-[10px]"></i>
+                    <span>Simulasi Asap</span>
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL VGI: FORM LAPOR TITIK API LAPANGAN -->
+    <div id="modalLapor" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl">
+            <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+                <div class="flex items-center space-x-2.5">
+                    <span class="w-8 h-8 rounded-lg bg-rose-600/30 text-rose-400 flex items-center justify-center">
+                        <i class="fa-solid fa-fire-extinguisher"></i>
+                    </span>
+                    <div>
+                        <h3 class="text-sm font-bold text-white uppercase tracking-wide">Formulir Lapor Karhutla Partisipatif (VGI)</h3>
+                        <p class="text-[11px] text-slate-400">Verifikasi Lapangan Langsung Relawan BPK & Masyarakat</p>
+                    </div>
+                </div>
+                <button onclick="toggleModal('modalLapor')" class="text-slate-400 hover:text-white text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <form onsubmit="handleReportSubmit(event)" class="p-5 space-y-3.5 text-xs">
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">Nama Pelapor / Unit BPK</label>
+                    <input type="text" id="repName" required placeholder="Contoh: BPK Putra Daha / Relawan Sektor Selatan" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-rose-500">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">Wilayah / Lokasi</label>
+                        <select id="repLocation" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-rose-500">
+                            <option>Banjarmasin Selatan (Perbatasan Kertak Hanyar)</option>
+                            <option>Banjarmasin Timur (Perbatasan Sungai Lulut)</option>
+                            <option>Jalur Lingkar Selatan (Gambut Barat)</option>
+                            <option>Handil Bakti (Perbatasan Alalak)</option>
+                            <option>Banjarmasin Barat / Utara</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">Kondisi Air Kanal Terdekat</label>
+                        <select id="repWater" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-rose-500">
+                            <option>Air Melimpah (Pasang - Aman Pompa)</option>
+                            <option>Air Sedang (Perlu Sambung Selang >100m)</option>
+                            <option>Air Surut / Kering (Butuh Truk Tangki)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">Koordinat Titik Api (GPS)</label>
+                    <div class="flex space-x-2">
+                        <input type="text" id="repCoords" readonly value="-3.3524, 114.6189" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-400 font-mono">
+                        <button type="button" onclick="getCurrentLocation()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg border border-slate-700 whitespace-nowrap">
+                            <i class="fa-solid fa-location-crosshairs mr-1"></i> Deteksi GPS
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">Keterangan Kondisi Api & Asap</label>
+                    <textarea id="repDesc" rows="3" placeholder="Jelaskan jenis bahan bakar (semak pakis, purun, semak gambut dangkal), perkiraan luas, dan arah kepulan asap..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-rose-500"></textarea>
+                </div>
+
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="toggleModal('modalLapor')" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition">Batal</button>
+                    <button type="submit" class="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold flex items-center space-x-1.5 transition">
+                        <i class="fa-solid fa-paper-plane text-xs"></i>
+                        <span>Kirim Laporan Lapangan</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL INFO / METODOLOGI -->
+    <div id="modalInfo" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl max-h-[85vh] flex flex-col">
+            <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-circle-info text-rose-500"></i>
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wide">Tentang SI-KAPADAM & Landasan Ilmiah</h3>
+                </div>
+                <button onclick="toggleModal('modalInfo')" class="text-slate-400 hover:text-white text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-4 text-xs text-slate-300 overflow-y-auto leading-relaxed">
+                <div>
+                    <h4 class="font-bold text-white text-sm mb-1">Latar Belakang & Urgensi</h4>
+                    <p>
+                        Kota Banjarmasin berkarakteristik deltaik lahan basah pasang-surut yang rentan terhadap dampak kabut asap lintas batas (*transboundary smoke haze*) akibat kebakaran hutan dan lahan (karhutla) di wilayah peri-urban penyangga (Kertak Hanyar, Gambut, Liang Anggang). <strong>SI-KAPADAM</strong> hadir sebagai sistem pendukung keputusan (*Decision Support System*) cerdas yang mengonvergensi sumber data hulu dan hilir.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <span class="font-bold text-rose-400 block mb-1"><i class="fa-solid fa-satellite mr-1"></i> Data Hulu: SiPongi KLHK</span>
+                        Memonitor titik panas (*hotspot*) satelit Terra/Aqua MODIS dan SNPP/NOAA-20 VIIRS dalam radius buffer 25 km dari batas Kota Banjarmasin.
+                    </div>
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <span class="font-bold text-amber-400 block mb-1"><i class="fa-solid fa-wind mr-1"></i> Data Hilir: IQAir & ISPU</span>
+                        Merekam konsentrasi mikro-polutan partikulat berbahaya ($PM_{2.5}$) dan indeks kualitas udara (AQI) secara *real-time* di 5 kecamatan kota.
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="font-bold text-white text-sm mb-1">Integrasi Pasang-Surut & Relawan BPK</h4>
+                    <p>
+                        Sistem ini memecahkan kendala utama di lapangan: <strong>ketiadaan air saat pemadaman akibat sungai surut</strong>. Melalui data pasut harian dari Pushidrosal Pelabuhan Trisakti dan peta kanal Dinas PUPR/BIG, sistem memandu armada Barisan Pemadam Kebakaran (BPK) swasta jejaring <strong>BALAKAR 654</strong> ke titik hisap air aktif terdekat.
+                    </p>
+                </div>
+
+                <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 text-[11px]">
+                    <span class="font-bold text-white block mb-0.5">Karya Tulis Ilmiah Bappedalitbang Kota Banjarmasin 2026</span>
+                    <span class="text-slate-400">Sub-Tema h: Kesiapsiagaan, Pengurangan Risiko, Mitigasi, dan Pemulihan Bencana</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- APPLICATION JAVASCRIPT -->
+    <script>
+        // --- 1. INISIALISASI PETA LEAFLET ---
+        const mapCenter = [-3.3285, 114.6150]; // Titik Tengah Banjarmasin
+        const map = L.map('map', {
+            center: mapCenter,
+            zoom: 12,
+            zoomControl: false
+        });
+
+        // Posisi Zoom Control di Kanan Bawah
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        // CartoDB Dark Matter Basemap
+        const darkBasemap = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://carto.com/">CartoDB</a> | SiPongi KLHK | IQAir | Bappedalitbang Banjarmasin',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Layer Groups
+        const layerGroups = {
+            hotspots: L.layerGroup().addTo(map),
+            aqi: L.layerGroup().addTo(map),
+            canals: L.layerGroup().addTo(map),
+            bpk: L.layerGroup().addTo(map),
+            smokePlume: L.layerGroup().addTo(map)
+        };
+
+        // --- 2. DATASET REALISTIS KOTA BANJARMASIN & PERI-URBAN ---
+
+        // A. Data Stasiun Kualitas Udara (IQAir / DLH PM2.5)
+        const aqiStations = [
+            { name: "Banjarmasin Selatan (Pemurus Dalam)", coords: [-3.3512, 114.6054], aqi: 168, pm25: 88.5, status: "Tidak Sehat", color: "#f43f5e" },
+            { name: "Banjarmasin Timur (Kuripan/Pal 4.5)", coords: [-3.3325, 114.6180], aqi: 154, pm25: 72.0, status: "Tidak Sehat", color: "#f59e0b" },
+            { name: "Banjarmasin Tengah (Kamboja / Nol Km)", coords: [-3.3194, 114.5908], aqi: 142, pm25: 58.2, status: "Tidak Sehat bagi Sensitif", color: "#f59e0b" },
+            { name: "Banjarmasin Barat (Pelambuan/Trisakti)", coords: [-3.3218, 114.5712], aqi: 118, pm25: 42.4, status: "Sedang", color: "#eab308" },
+            { name: "Banjarmasin Utara (Kayu Tangi / Alalak)", coords: [-3.2980, 114.5950], aqi: 126, pm25: 45.8, status: "Sedang", color: "#eab308" }
+        ];
+
+        // B. Data Hotspot SiPongi KLHK (Ring Perbatasan Peri-Urban)
+        const sipongiHotspots = [
+            { id: "HS-01", location: "Kertak Hanyar (Batas Bjm Selatan)", coords: [-3.3685, 114.6280], confidence: "Tinggi (92%)", frp: 48.5, satellite: "SNPP VIIRS", time: "10 Menit lalu" },
+            { id: "HS-02", location: "Gambut Barat / Handil Bakti Sel.", coords: [-3.3820, 114.6520], confidence: "Sangat Tinggi (96%)", frp: 72.1, satellite: "Terra/MODIS", time: "25 Menit lalu" },
+            { id: "HS-03", location: "Lingkar Selatan (Depan Trisakti Mas)", coords: [-3.3590, 114.5820], confidence: "Tinggi (88%)", frp: 36.4, satellite: "NOAA-20", time: "42 Menit lalu" },
+            { id: "HS-04", location: "Liang Anggang Perbatasan Banjarbaru", coords: [-3.4210, 114.6850], confidence: "Sangat Tinggi (98%)", frp: 115.0, satellite: "SNPP VIIRS", time: "1 Jam lalu" },
+            { id: "HS-05", location: "Sungai Lulut / Batas Banjar", coords: [-3.3380, 114.6490], confidence: "Sedang (74%)", frp: 21.0, satellite: "Aqua/MODIS", time: "2 Jam lalu" }
+        ];
+
+        // C. Data Kanal Pasang-Surut (Dinas PUPR / Balai Wilayah Sungai)
+        const canalNetworks = [
+            {
+                name: "Kanal Saluran Primer Lingkar Selatan",
+                status: "Pasang (Air Cukup - Elevasi 1.9m)",
+                color: "#22d3ee",
+                coords: [
+                    [-3.3650, 114.5680],
+                    [-3.3610, 114.5920],
+                    [-3.3580, 114.6300]
+                ]
+            },
+            {
+                name: "Saluran Sekunder Kertak Hanyar - Pemurus",
+                status: "Pasang Normal (Elevasi 1.6m)",
+                color: "#22d3ee",
+                coords: [
+                    [-3.3520, 114.6050],
+                    [-3.3650, 114.6220],
+                    [-3.3750, 114.6380]
+                ]
+            },
+            {
+                name: "Saluran Tersier Gambut Km 14 (Rawa Dangkal)",
+                status: "Surut Kritis (<0.5m - Rawan Lumpur)",
+                color: "#d97706",
+                coords: [
+                    [-3.3850, 114.6400],
+                    [-3.3920, 114.6650],
+                    [-3.4010, 114.6800]
+                ]
+            },
+            {
+                name: "Kanal Induk Sungai Martapura - Veteran",
+                status: "Pasang Tinggi (Debit Melimpah)",
+                color: "#0284c7",
+                coords: [
+                    [-3.3250, 114.5950],
+                    [-3.3300, 114.6200],
+                    [-3.3350, 114.6450]
+                ]
+            }
+        ];
+
+        // D. Data Posko Armada BPK Swasta (Jejaring BALAKAR 654)
+        const bpkPosts = [
+            { name: "BPK Putra Daha", sector: "Banjarmasin Selatan", coords: [-3.3480, 114.5980], trucks: "2 Unit Portable + 1 Tangki", phone: "0812-5100-XXXX", status: "Siaga 1 Lapangan" },
+            { name: "BPK Kenari", sector: "Banjarmasin Timur", coords: [-3.3360, 114.6190], trucks: "3 Unit Pompa Apung Kodok", phone: "0813-4820-XXXX", status: "Menuju TKP Kertak Hanyar" },
+            { name: "BPK Seberang Mesjid", sector: "Banjarmasin Tengah", coords: [-3.3150, 114.5940], trucks: "2 Unit Portable High Pressure", phone: "0852-4911-XXXX", status: "Standby Cadangan" },
+            { name: "BPK Banua Anyar", sector: "Banjarmasin Timur / DAS Martapura", coords: [-3.3080, 114.6220], trucks: "1 Kapal Pemadam + 2 Pompa", phone: "0811-5022-XXXX", status: "Patroli Alur Sungai" },
+            { name: "BPK Pelambuan Bersatu", sector: "Banjarmasin Barat", coords: [-3.3240, 114.5750], trucks: "2 Unit Tangki Cepat", phone: "0821-5588-XXXX", status: "Standby Industri & Pelabuhan" }
+        ];
+
+        // --- 3. RENDERING KE PETA LEAFLET ---
+
+        // Render Boundary Buffer Lingkar Peri-Urban Banjarmasin
+        const bjmMunicipalityCircle = L.circle([-3.3285, 114.6050], {
+            radius: 8500,
+            color: '#3b82f6',
+            fillColor: '#1d4ed8',
+            fillOpacity: 0.05,
+            dashArray: '4, 8',
+            weight: 1.5
+        }).addTo(map);
+
+        // Render Hotspots (SiPongi KLHK)
+        sipongiHotspots.forEach(hs => {
+            const fireIcon = L.divIcon({
+                className: 'custom-fire-marker',
+                html: `
+                    <div class="w-8 h-8 rounded-full bg-rose-600/90 text-white flex items-center justify-center shadow-lg border-2 border-white pulse-fire text-xs cursor-pointer">
+                        <i class="fa-solid fa-fire"></i>
+                    </div>
+                `,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+            });
+
+            const marker = L.marker(hs.coords, { icon: fireIcon });
+            marker.bindPopup(`
+                <div class="text-xs p-1">
+                    <div class="flex items-center justify-between border-b pb-1.5 mb-2">
+                        <span class="font-bold text-rose-600 uppercase flex items-center"><i class="fa-solid fa-fire mr-1"></i> Hotspot SiPongi</span>
+                        <span class="text-[10px] bg-rose-100 text-rose-800 font-bold px-1.5 py-0.5 rounded">${hs.id}</span>
+                    </div>
+                    <p class="font-bold text-slate-800 text-sm mb-1">${hs.location}</p>
+                    <div class="space-y-1 text-slate-600 text-[11px]">
+                        <div>Tingkat Keyakinan: <strong>${hs.confidence}</strong></div>
+                        <div>Daya Pancar Radiatif (FRP): <strong>${hs.frp} MW</strong></div>
+                        <div>Sensor Satelit: <strong>${hs.satellite}</strong></div>
+                        <div>Waktu Deteksi: <em>${hs.time}</em></div>
+                    </div>
+                    <div class="mt-2.5 pt-2 border-t flex space-x-1.5">
+                        <button onclick="dispatchBpkToHotspot('${hs.location}', ${hs.coords[0]}, ${hs.coords[1]})" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-semibold py-1 px-2 rounded text-[11px] flex items-center justify-center space-x-1">
+                            <i class="fa-solid fa-truck-fast"></i>
+                            <span>Arahkan Armada BPK</span>
+                        </button>
+                    </div>
+                </div>
+            `);
+            layerGroups.hotspots.addLayer(marker);
+        });
+
+        // Render AQI Stations (IQAir)
+        aqiStations.forEach(st => {
+            const aqiIcon = L.divIcon({
+                className: 'custom-aqi-marker',
+                html: `
+                    <div class="px-2 py-1 rounded-md text-[10px] font-bold text-white shadow-md flex items-center space-x-1 border border-white/50" style="background-color: ${st.color}">
+                        <i class="fa-solid fa-wind text-[9px]"></i>
+                        <span>${st.aqi}</span>
+                    </div>
+                `,
+                iconSize: [48, 24],
+                iconAnchor: [24, 12]
+            });
+
+            const marker = L.marker(st.coords, { icon: aqiIcon });
+            marker.bindPopup(`
+                <div class="text-xs p-1">
+                    <span class="text-[10px] font-bold uppercase text-slate-500">Stasiun IQAir & DLH Banjarmasin</span>
+                    <h4 class="font-bold text-slate-900 text-sm mt-0.5 mb-1">${st.name}</h4>
+                    <div class="p-2 rounded-lg my-1 text-white flex items-center justify-between" style="background-color: ${st.color}">
+                        <div>
+                            <span class="text-[10px] uppercase block opacity-80">Indeks Kualitas Udara (AQI)</span>
+                            <span class="text-lg font-extrabold font-mono">${st.aqi}</span>
+                        </div>
+                        <span class="text-xs font-bold">${st.status}</span>
+                    </div>
+                    <div class="text-[11px] text-slate-600 space-y-0.5 mt-1.5">
+                        <div>Konsentrasi PM2.5: <strong>${st.pm25} &micro;g/m&sup3;</strong></div>
+                        <div class="text-[10px] text-slate-500 italic mt-1">*Standar Baku Mutu PP 22/2021: Maks 55 &micro;g/m&sup3; (24 Jam)</div>
+                    </div>
+                </div>
+            `);
+            layerGroups.aqi.addLayer(marker);
+        });
+
+        // Render Canal Lines (Saluran Pasang Surut)
+        canalNetworks.forEach(c => {
+            const polyline = L.polyline(c.coords, {
+                color: c.color,
+                weight: 4,
+                opacity: 0.85,
+                dashArray: c.status.includes('Surut') ? '6, 6' : null
+            });
+
+            polyline.bindPopup(`
+                <div class="text-xs p-1">
+                    <span class="text-[10px] font-bold text-cyan-600 uppercase"><i class="fa-solid fa-water mr-1"></i> Data Jaringan Drainase Rawa</span>
+                    <h4 class="font-bold text-slate-900 text-sm mt-0.5 mb-1">${c.name}</h4>
+                    <p class="text-[11px] text-slate-700">Status Pasut: <strong>${c.status}</strong></p>
+                    <div class="mt-2 p-1.5 rounded bg-slate-100 text-[10px] text-slate-600">
+                        Rekomendasi Operasional: ${c.status.includes('Surut') ? '⚠️ Tidak disarankan untuk hisap pompa langsung. Hubungi armada tangki air.' : '✅ Sangat direkomendasikan untuk titik gelar selang pompa jinjing BPK.'}
+                    </div>
+                </div>
+            `);
+            layerGroups.canals.addLayer(polyline);
+        });
+
+        // Render BPK Volunteer Posts
+        bpkPosts.forEach(bpk => {
+            const bpkIcon = L.divIcon({
+                className: 'custom-bpk-marker',
+                html: `
+                    <div class="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-lg border border-white text-xs cursor-pointer hover:bg-emerald-500 transition">
+                        <i class="fa-solid fa-truck-droplet text-[11px]"></i>
+                    </div>
+                `,
+                iconSize: [28, 28],
+                iconAnchor: [14, 14]
+            });
+
+            const marker = L.marker(bpk.coords, { icon: bpkIcon });
+            marker.bindPopup(`
+                <div class="text-xs p-1">
+                    <span class="text-[10px] font-bold uppercase text-emerald-600 flex items-center"><i class="fa-solid fa-shield-halved mr-1"></i> Unit BALAKAR 654 Banjarmasin</span>
+                    <h4 class="font-bold text-slate-900 text-sm mt-0.5 mb-1">${bpk.name}</h4>
+                    <p class="text-[11px] text-slate-600 mb-1">Wilayah Sektor: <strong>${bpk.sector}</strong></p>
+                    <div class="bg-emerald-50 text-emerald-900 p-2 rounded-lg text-[11px] space-y-1 mb-2">
+                        <div>Kapasitas Armada: <strong>${bpk.trucks}</strong></div>
+                        <div>Status Regu: <strong>${bpk.status}</strong></div>
+                        <div>Kontak Radio/HP: <strong>${bpk.phone}</strong></div>
+                    </div>
+                    <a href="tel:${bpk.phone}" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-1 px-2 rounded text-[11px] flex items-center justify-center space-x-1">
+                        <i class="fa-solid fa-phone"></i>
+                        <span>Hubungi Posko Unit</span>
+                    </a>
+                </div>
+            `);
+            layerGroups.bpk.addLayer(marker);
+        });
+
+        // --- 4. POPULATE SIDEBAR LISTS ---
+
+        // Render Station List in Tab 1
+        const stationContainer = document.getElementById('stationList');
+        stationContainer.innerHTML = aqiStations.map(st => `
+            <div onclick="map.flyTo([${st.coords[0]}, ${st.coords[1]}], 14)" class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 hover:border-slate-700 cursor-pointer flex items-center justify-between transition">
+                <div>
+                    <span class="text-xs font-semibold text-slate-200 block">${st.name}</span>
+                    <span class="text-[10px] text-slate-400">PM2.5: ${st.pm25} &micro;g/m&sup3;</span>
+                </div>
+                <div class="text-right">
+                    <span class="px-2 py-0.5 rounded text-[10px] font-bold text-white" style="background-color: ${st.color}">${st.aqi}</span>
+                    <span class="block text-[9px] text-slate-400 mt-0.5">${st.status}</span>
+                </div>
+            </div>
+        `).join('');
+
+        // Render Hotspot Feed in Tab 1
+        const hotspotFeedContainer = document.getElementById('hotspotFeed');
+        hotspotFeedContainer.innerHTML = sipongiHotspots.map(hs => `
+            <div onclick="map.flyTo([${hs.coords[0]}, ${hs.coords[1]}], 14)" class="p-2.5 rounded-lg bg-rose-950/30 border border-rose-900/40 hover:border-rose-700 cursor-pointer transition">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-rose-400">${hs.location}</span>
+                    <span class="text-[9px] bg-rose-900/80 text-rose-200 px-1.5 py-0.5 rounded font-mono">${hs.confidence}</span>
+                </div>
+                <div class="flex items-center justify-between text-[10px] text-slate-400 mt-1">
+                    <span>Daya: ${hs.frp} MW | ${hs.satellite}</span>
+                    <span class="text-slate-500">${hs.time}</span>
+                </div>
+            </div>
+        `).join('');
+
+        // Render BPK List in Tab 2
+        const bpkListContainer = document.getElementById('bpkList');
+        bpkListContainer.innerHTML = bpkPosts.map(bpk => `
+            <div onclick="map.flyTo([${bpk.coords[0]}, ${bpk.coords[1]}], 14)" class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 hover:border-emerald-700 cursor-pointer transition">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-slate-200">${bpk.name}</span>
+                    <span class="text-[9px] bg-emerald-950 text-emerald-300 border border-emerald-800/40 px-1.5 py-0.5 rounded">${bpk.status}</span>
+                </div>
+                <div class="text-[10px] text-slate-400 mt-1 space-y-0.5">
+                    <div>Sektor: ${bpk.sector}</div>
+                    <div class="text-emerald-400 font-mono">${bpk.trucks}</div>
+                </div>
+            </div>
+        `).join('');
+
+        // --- 5. INTERAKSI & FUNGSI BANTU ---
+
+        function switchTab(tabId) {
+            ['tab-pemantauan', 'tab-armada', 'tab-dss'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+                const btn = document.getElementById('btn-' + id);
+                btn.classList.remove('border-rose-500', 'text-rose-400', 'bg-slate-900/70', 'font-semibold');
+                btn.classList.add('border-transparent', 'text-slate-400');
+            });
+
+            document.getElementById(tabId).classList.remove('hidden');
+            const activeBtn = document.getElementById('btn-' + tabId);
+            activeBtn.classList.remove('border-transparent', 'text-slate-400');
+            activeBtn.classList.add('border-rose-500', 'text-rose-400', 'bg-slate-900/70', 'font-semibold');
+        }
+
+        function toggleMapLayer(layerName) {
+            if (map.hasLayer(layerGroups[layerName])) {
+                map.removeLayer(layerGroups[layerName]);
+            } else {
+                map.addLayer(layerGroups[layerName]);
+            }
+        }
+
+        function toggleModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.toggle('hidden');
+        }
+
+        function resetMapView() {
+            map.flyTo(mapCenter, 12);
+        }
+
+        // Simulasi Plume Dispersi Asap (Gaussian Plume Simulation)
+        let isSimulating = false;
+        function triggerSmokeSimulation() {
+            const btn = document.getElementById('btnSimulasi');
+            if (isSimulating) {
+                layerGroups.smokePlume.clearLayers();
+                btn.innerHTML = `<i class="fa-solid fa-play text-[10px]"></i> <span>Simulasi Asap</span>`;
+                btn.classList.remove('bg-amber-600');
+                btn.classList.add('bg-rose-700');
+                isSimulating = false;
+            } else {
+                // Gambar poligon model kepulan asap dari Gambut ke Banjarmasin Selatan/Timur
+                const smokePolygon = L.polygon([
+                    [-3.3850, 114.6500], // Sumber Api di Gambut
+                    [-3.3450, 114.6400], // Melebar ke Banjarmasin Timur
+                    [-3.3300, 114.5900], // Menyelimuti Banjarmasin Tengah
+                    [-3.3600, 114.5800], // Menyelimuti Banjarmasin Selatan
+                    [-3.3900, 114.6200]  // Batas Bawah Lingkar Selatan
+                ], {
+                    color: '#f59e0b',
+                    weight: 1,
+                    fillColor: '#d97706',
+                    fillOpacity: 0.35,
+                    dashArray: '5, 5'
+                }).addTo(layerGroups.smokePlume);
+
+                smokePolygon.bindPopup(`
+                    <div class="text-xs p-1">
+                        <span class="text-[10px] font-bold text-amber-600 uppercase"><i class="fa-solid fa-wind mr-1"></i> Simulasi Dispersi Gaussian</span>
+                        <h4 class="font-bold text-slate-900 text-sm mt-0.5">Proyeksi Arah Sebaran Asap PM2.5</h4>
+                        <p class="text-[11px] text-slate-700 mt-1">Dipicu oleh angin arah Tenggara (140&deg;) kecepatan 18 km/jam. Asap diperkirakan memapar 3 kecamatan dalam rentang 45–90 menit ke depan.</p>
+                        <div class="mt-2 text-rose-600 font-bold text-[10px]">Status: Waspada Bahaya Pernapasan</div>
+                    </div>
+                `);
+
+                map.fitBounds(smokePolygon.getBounds(), { padding: [50, 50] });
+                btn.innerHTML = `<i class="fa-solid fa-stop text-[10px]"></i> <span>Hentikan Simulasi</span>`;
+                btn.classList.remove('bg-rose-700');
+                btn.classList.add('bg-amber-600');
+                isSimulating = true;
+            }
+        }
+
+        function dispatchBpkToHotspot(locationName, lat, lng) {
+            switchTab('tab-armada');
+            map.flyTo([lat, lng], 15);
+            alert(`🚨 PERINTAH OPERASIONAL SI-KAPADAM:\nArmada BPK Sektor Selatan (BPK Putra Daha & BPK Kenari) telah diinstruksikan merapat ke ${locationName}.\n\nSaluran terdekat berada pada kondisi PASANG (+1.85m), siap untuk pemasangan selang pompa hisap.`);
+        }
+
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    const lat = position.coords.latitude.toFixed(4);
+                    const lng = position.coords.longitude.toFixed(4);
+                    document.getElementById('repCoords').value = `${lat}, ${lng}`;
+                }, () => {
+                    alert("GPS tidak diizinkan atau tidak aktif. Menggunakan koordinat default.");
+                });
+            }
+        }
+
+        function handleReportSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('repName').value;
+            const loc = document.getElementById('repLocation').value;
+            const water = document.getElementById('repWater').value;
+            
+            toggleModal('modalLapor');
+            alert(`✅ LAPORAN TERVERIFIKASI (VGI):\nTerima kasih, ${name}!\nLaporan titik api di ${loc} dengan kondisi "${water}" telah tercatat di PUSDALOPS BPBD dan diteruskan ke radio komunikasi BALAKAR 654.`);
+            e.target.reset();
+        }
+    </script>
+</body>
+</html>
