@@ -532,10 +532,10 @@
         // Posisi Zoom Control di Kanan Bawah
         L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-        // CartoDB Dark Matter Basemap
-        const darkBasemap = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; <a href="https://carto.com/">CartoDB</a> | SiPongi KLHK | IQAir | Bappedalitbang Banjarmasin',
-            maxZoom: 19
+        // Basemap Tile Layer (Esri Dark Gray Canvas - Bebas Watermark API)
+        const darkBasemap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '&copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors | SiPongi KLHK | IQAir | Bappedalitbang Banjarmasin',
+            maxZoom: 16
         }).addTo(map);
 
         // Layer Groups
@@ -906,11 +906,23 @@
             const name = document.getElementById('repName').value;
             const loc = document.getElementById('repLocation').value;
             const water = document.getElementById('repWater').value;
-            
             toggleModal('modalLapor');
             alert(`✅ LAPORAN TERVERIFIKASI (VGI):\nTerima kasih, ${name}!\nLaporan titik api di ${loc} dengan kondisi "${water}" telah tercatat di PUSDALOPS BPBD dan diteruskan ke radio komunikasi BALAKAR 654.`);
             e.target.reset();
         }
+
+        // Auto trigger jika dipanggil via parameter screenshot
+        window.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('sim') === '1') {
+                setTimeout(() => {
+                    triggerSmokeSimulation();
+                    if (params.get('tab')) {
+                        switchTab(params.get('tab'));
+                    }
+                }, 800);
+            }
+        });
     </script>
 </body>
 </html>
